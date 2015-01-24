@@ -11,7 +11,10 @@ print("version: {version}".format(version=version))
 
 if sys.platform.startswith('linux'):
     extension_args = dict(
-        define_macros=[('__LINUX_ALSASEQ__', None)],
+        define_macros=[
+            ('__LINUX_ALSASEQ__', None),
+            ('__LINUX_ALSA__', None)
+        ],
         libraries=['asound', 'pthread']
     )
 
