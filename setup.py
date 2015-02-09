@@ -3,10 +3,11 @@ import distutils
 import sys
 from Cython.Distutils import build_ext
 
+version = "0.5.6"  # when changing version, this should reflect what is returned by version()
+
 module_source = 'rtmidi2.pyx'
 
 extension_args = {}
-version = open("version.cfg").read().strip()
 print("version: {version}".format(version=version))
 
 if sys.platform.startswith('linux'):

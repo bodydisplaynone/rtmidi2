@@ -195,7 +195,7 @@ cdef class MidiIn(MidiBase):
             self.thisptr = new RtMidiIn(UNSPECIFIED, string(<char*>clientname), queuesize)
         self.py_callback = None
         self._openedports = []
-
+        
     def __init__(self, clientname=None, queuesize=100):
         """
         clientname (optional): the name of the client (bytes string, no unicode)
@@ -307,14 +307,14 @@ cdef class MidiInMulti:
     cdef list qualified_callbacks
     cdef readonly list _openedports
     cdef dict hascallback
-
+    
     def __cinit__(self, clientname=None, queuesize=100):
         # self.inspector = new RtMidiIn(string(<char*>"RTMIDI-INSPECTOR"), queuesize)
         self.inspector = new RtMidiIn(UNSPECIFIED, string(<char*>"RTMIDI-INSPECTOR"), queuesize)
         self.ptrs = new vector[RtMidiIn *]()
         self.py_callback = None
         self.qualified_callbacks = []
-
+        
     def __init__(self, clientname=None, queuesize=100):
         """
         This class implements the capability to listen to multiple inputs at once
@@ -687,6 +687,7 @@ cdef class MidiOut(MidiBase):
         self.msg3_locked = 0
         self.virtual_port_opened = False
         self._openedports = []
+
     def __init__(self): pass
     def __dealloc__(self):
         self.close_port()
@@ -796,24 +797,39 @@ cdef class MidiOut(MidiBase):
 
     cpdef send_noteon(self, unsigned char channel, unsigned char midinote, unsigned char velocity):
         """
-        NB: channel -> 0.15
+        NB: channel -> 0-15
         """
         self._send_raw(DNOTEON|channel, midinote, velocity)
 
-    cpdef send_noteon_many(self, channels, notes, vels):
+    def send_noteon_many(self, channel not None, notes not None, vels not None):
         """
-        channels, notes and vels are sequences of integers.
+        channel: an integer indicating the midi channel, or a list of channels
+                 (must be the same length as notes)
+        notes and vels are sequences of integers.
         """
         cdef vector[unsigned char]* m = new vector[unsigned char](3)
-        if isinstance(notes, list):
+        if not isinstance(notes, list):
+            del m
+            raise NotImplemented("notes and vels should be lists. other containers are not yet implemented")
+        if isinstance(channel, list) and isinstance(notes, list) and isinstance(vels, list):
             for i in range(len(<list>notes)):
-                m[0][0] = DNOTEON |<unsigned char>(<list>channels)[i]
+                m[0][0] = DNOTEON |<unsigned char>(<list>channel)[i]
                 m[0][1] = <unsigned char>(<list>notes)[i]
                 m[0][2] = <unsigned char>(<list>vels)[i]
                 self.thisptr.sendMessage(m)
         else:
-            del m
-            raise NotImplemented("channels, notes and vels should be lists. other containers are not yet implemented")
+            if isinstance(channel, int):
+                m[0][0] = channel
+                for i in range(len(notes)):
+                    m[0][1] = <unsigned char>(notes[i])
+                    m[0][2] = <unsigned char>(vels[i])
+                    self.thisptr.sendMessage(m)
+            else:
+                for i in range(len(notes)):
+                    m[0][0] = <unsigned char>(channel[i])
+                    m[0][1] = <unsigned char>(notes[i])
+                    m[0][2] = <unsigned char>(vels[i])
+                    self.thisptr.sendMessage(m)
         del m
 
     cpdef send_noteoff(self, unsigned char channel, unsigned char midinote):
@@ -865,3 +881,5 @@ cpdef MidiIn _get_midiin():
         _midiin = MidiIn()
     return _midiin
 
+def version():
+    return (0, 5, 6)
