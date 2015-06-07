@@ -885,4 +885,4 @@ cpdef MidiIn _get_midiin():
     return _midiin
 
 def version():
-    return (0, 5, 7)
+    return (0, 6, 0)
