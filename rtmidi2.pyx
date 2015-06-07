@@ -371,9 +371,12 @@ cdef class MidiInMulti:
             ports = (self.inspector.getPortName(i).c_str() for i in range(self.inspector.getPortCount()))
             return [port for port in ports if port]
 
-    property openedports:
-        def __get__(self):
-            return self._openedports
+    def get_open_ports(self):
+        """
+        Returns a list of the open ports, by index
+        To get the name, use .get_port_name
+        """
+        return self._openedports
 
     def get_port_name(self, int i):
         return self.inspector.getPortName(i).c_str()
@@ -882,4 +885,4 @@ cpdef MidiIn _get_midiin():
     return _midiin
 
 def version():
-    return (0, 5, 6)
+    return (0, 5, 7)
