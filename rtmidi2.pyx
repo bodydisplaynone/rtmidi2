@@ -69,8 +69,8 @@ cdef extern from "RtMidi/RtMidi.h":
         double getMessage(vector[unsigned char]* message)
 
     cdef cppclass RtMidiOut(RtMidi):
-        # RtMidiOut(RtMidi.Api api, string clientName)
-        RtMidiOut()
+        RtMidiOut(RtMidi.Api api, string clientName)
+        # RtMidiOut()
         void sendMessage(vector[unsigned char]* message)
 
 cdef class MidiBase:
@@ -713,9 +713,14 @@ cdef class MidiOut(MidiBase):
         def __get__(self): return self.msg3_locked
         def __set__(self, value):
             self.msg3_locked = int(value)
-    def __cinit__(self):
-        #self.thisptr = new RtMidiOut(string(<char*>"rtmidiout"))
-        self.thisptr = new RtMidiOut()
+    def __cinit__(self, clientname=None):
+        if clientname is None:
+            self.thisptr = new RtMidiOut(UNSPECIFIED, string(<char*>"RTMIDI"))
+        else:
+            clientname = clientname.encode("ASCII", errors="ignore")
+            self.thisptr = new RtMidiOut(UNSPECIFIED, string(<char*>clientname))
+            # self.thisptr = new RtMidiOut(string(<char*>"rtmidiout"))
+        # self.thisptr = new RtMidiOut()
         self.msg3 = new vector[unsigned char]()
         for n in range(3):
             self.msg3.push_back(0)
@@ -723,7 +728,7 @@ cdef class MidiOut(MidiBase):
         self.virtual_port_opened = False
         self._openedports = []
 
-    def __init__(self): pass
+    def __init__(self, clientname=None): pass
     def __dealloc__(self):
         self.close_port()
         del self.thisptr
