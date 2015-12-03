@@ -161,6 +161,7 @@ cdef class MidiBase:
         midiin.ports_matching("*")
 
         """
+        assert pattern is not None
         ports = self.ports
         return [i for i, port in enumerate(ports) if fnmatch.fnmatch(port, pattern)]
 
@@ -293,7 +294,7 @@ cdef class MidiIn(MidiBase):
 
 
 cdef class MidiInMulti:
-    cdef RtMidiIn* inspector
+    # cdef RtMidiIn* inspector
     cdef vector[RtMidiIn *]* ptrs 
     cdef int queuesize
     cdef readonly object clientname
@@ -301,10 +302,15 @@ cdef class MidiInMulti:
     cdef list qualified_callbacks
     cdef readonly list _openedports
     cdef dict hascallback
+
+    property inspector:
+        def __get__(self):
+            return MidiIn("INSPECTOR")
     
     def __cinit__(self, clientname=None, queuesize=100):
         # self.inspector = new RtMidiIn(string(<char*>"RTMIDI-INSPECTOR"), queuesize)
-        self.inspector = new RtMidiIn(UNSPECIFIED, string(<char*>"RTMIDI-INSPECTOR"), queuesize)
+        # inspectorname = "RTMIDI-INSPECTOR".encode("ASCII", errors="ignore")
+        # self.inspector = new RtMidiIn(UNSPECIFIED, string(<char*>inspectorname), queuesize)
         self.ptrs = new vector[RtMidiIn *]()
         self.py_callback = None
         self.qualified_callbacks = []
@@ -351,10 +357,8 @@ cdef class MidiInMulti:
 
     def __dealloc__(self):
         self.close_ports()
-        self.inspector.closePort()
         del self.ptrs
-        del self.inspector
-
+        
     def __repr__(self):
         allports = self.ports
         s = " + ".join(allports[port] for port in self._openedports)
@@ -362,7 +366,7 @@ cdef class MidiInMulti:
 
     property ports:
         def __get__(self):
-            return [self.get_port_name(i) for i in range(self.inspector.getPortCount())]
+            return self.inspector.ports
 
     def get_open_ports(self):
         """
@@ -378,18 +382,8 @@ cdef class MidiInMulti:
         ``encoding`` (defaults to ``'utf-8'``). If ``encoding`` is ``None``,
         return string un-decoded.
         """
-        name = self.inspector.getPortName(portindex).c_str()
-        if len(name):
-            if encoding:
-                # XXX: kludge, there seems to be a bug in RtMidi as it returns
-                # improperly encoded strings from getPortName with some
-                # backends, so we just ignore decoding errors
-                return name.decode(encoding, errors="ignore")
-            else:
-                return name
-        else:
-            return None
-
+        return self.inspector.get_port_name(portindex, encoding)
+        
     
     def get_callback(self):
         return self.py_callback
@@ -429,12 +423,11 @@ cdef class MidiInMulti:
             
         SEE ALSO: open_ports
         """
-        if port >= self.inspector.getPortCount():
+        if port >= len(self.inspector.ports): 
             raise ValueError("Port out of range")
         if port in self._openedports:
             raise ValueError("Port already open!")
         cdef RtMidiIn* newport = new RtMidiIn(UNSPECIFIED, string(<char*>self.clientname), self.queuesize)
-        portname = self.inspector.getPortName(port).c_str()
         newport.openPort(port)
         self.ptrs.push_back(newport)
         self._openedports.append(port)
