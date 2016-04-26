@@ -3,7 +3,7 @@ import distutils
 import sys
 from Cython.Distutils import build_ext
 
-version = "0.6.0"  # when changing version, this should reflect what is returned by version()
+version = "0.7.0"  # when changing version, this should reflect what is returned by version()
 
 module_source = 'rtmidi2.pyx'
 

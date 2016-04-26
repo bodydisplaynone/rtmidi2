@@ -181,6 +181,7 @@ cdef void midi_in_callback_with_src(double time_stamp, vector[unsigned char]* me
 cdef class MidiIn(MidiBase):
     cdef RtMidiIn* thisptr
     cdef object py_callback
+    cdef readonly double deltatime 
 
     def __cinit__(self, clientname=None, queuesize=100):
         if clientname is None:
@@ -264,15 +265,15 @@ cdef class MidiIn(MidiBase):
         """
         self.thisptr.ignoreTypes(midi_sysex, midi_time, midi_sense)
 
-    def get_message(self, int gettime=1):
+    def get_message(self):
         """
         Blocking interface. For non-blocking interface, use the callback method (midiin.callback = ...)
 
-        if gettime == 1:
-            returns (message, delta_time) 
-        otherwise returns only message
-
-        where message is [(messagetype | channel), value1, value2]
+        A message can be:
+            a 3 byte message (cc, noteon, pitchbend): [(messagetype | channel), value1, value2]
+            a 2 byte message (progchange, chanpress): [(messagetype | channel), value1]
+            a 1 byte message (start, stop, clock)
+            a sysex message, with variable number of bytes
 
         To isolate messagetype and channel, do this:
 
@@ -284,14 +285,15 @@ cdef class MidiIn(MidiBase):
         msgtype, channel = splitchannel(message[0])
         """
         cdef vector[unsigned char]* message_vector = new vector[unsigned char]()
-        delta_time = self.thisptr.getMessage(message_vector)
+        cdef double deltatime = self.thisptr.getMessage(message_vector)
         cdef list message
+        self.deltatime = deltatime
         if not message_vector.empty():
             message = [message_vector.at(i) for i in range(message_vector.size())]
-            return (message, delta_time) if gettime == 1 else message
+            return message
         else:
-            return (None, None) if gettime == 1 else None
-
+            return None
+        
 
 cdef class MidiInMulti:
     # cdef RtMidiIn* inspector
@@ -738,15 +740,42 @@ cdef class MidiOut(MidiBase):
         self.virtual_port_opened = True
         return MidiBase.open_virtual_port(self, port_name)
 
-    def send_message(self, tuple message not None):
-        """
-        message is a tuple of bytes. this sends raw midi messages
-        """
-        self._send_raw(message[0], message[1], message[2])
+    #def send_message(self, tuple message not None):
+    #    """
+    #    message is a tuple of 3 bytes. this sends raw midi messages
+    #    """
+    #    self._send_raw3(message[0], message[1], message[2])
 
-    def send_raw(self, unsigned char b0, unsigned char b1, unsigned char b2):
-        self._send_raw(b0, b1, b2)
+    def send_raw(self, *bytes):
+        cdef int lenbytes = len(bytes)
+        cdef vector[unsigned char]* v = new vector[unsigned char](lenbytes)
+        cdef unsigned char b
+        cdef int i = 0
+        for b in bytes:
+            v[0][i] = b
+            i += 1
+        self.thisptr.sendMessage(v)
+        del v
 
+    def send_sysex(self, *bytes):
+        """
+        bytes: the content of the sysex message. A sysex message consists
+               of a starting byte 0xF0, the content of the sysex command, 
+               and an end byte 0xF7. 
+               The bytes need to be in the range 0-127
+        """
+        cdef int lenbytes = len(bytes)
+        cdef vector[unsigned char]* v = new vector[unsigned char](lenbytes+2)
+        cdef unsigned char b
+        cdef int i = 1
+        v[0][0] = 0xF0
+        v[0][lenbytes+1] = 0xF7
+        for b in bytes:
+            v[0][i] = b
+            i += 1
+        self.thisptr.sendMessage(v)
+        del v
+            
     def send_pitchbend(self, unsigned char channel, unsigned int transp):
         """
         channel: 0-15
@@ -766,12 +795,12 @@ cdef class MidiOut(MidiBase):
             return
         b1 = transp & 127
         b2 = transp >> 7
-        self._send_raw(DPITCHWHEEL+channel, b1, b2)
+        self._send_raw3(DPITCHWHEEL+channel, b1, b2)
 
-    cdef inline void _send_raw(self, unsigned char b0, unsigned char b1, unsigned char b2):
+    cdef inline void _send_raw3(self, unsigned char b0, unsigned char b1, unsigned char b2):
         cdef vector[unsigned char]* v
         if self.msg3_locked:
-            v = new vector[unsigned char]()
+            v = new vector[unsigned char](3)
             v[0][0] = b0
             v[0][1] = b1
             v[0][2] = b2
@@ -790,7 +819,7 @@ cdef class MidiOut(MidiBase):
         """
         channel -> 0-15
         """
-        self._send_raw(DCC | channel, cc, value)
+        self._send_raw3(DCC | channel, cc, value)
 
     cpdef send_messages(self, int messagetype, messages):
         """
@@ -832,7 +861,7 @@ cdef class MidiOut(MidiBase):
         """
         NB: channel -> 0-15
         """
-        self._send_raw(DNOTEON|channel, midinote, velocity)
+        self._send_raw3(DNOTEON|channel, midinote, velocity)
 
     def send_noteon_many(self, channel not None, notes not None, vels not None):
         """
@@ -869,7 +898,7 @@ cdef class MidiOut(MidiBase):
         """
         NB: channel -> 0-15
         """
-        self._send_raw(DNOTEOFF|channel, midinote, 0)
+        self._send_raw3(DNOTEOFF|channel, midinote, 0)
 
     cpdef send_noteoff_many(self, channels, notes):
         """
@@ -915,4 +944,4 @@ cpdef MidiIn _get_midiin():
     return _midiin
 
 def version():
-    return (0, 6, 0)
+    return (0, 7, 0)
