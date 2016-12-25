@@ -377,6 +377,9 @@ cdef class MidiInMulti:
         """
         return self._openedports
 
+    def get_open_ports_byname(self):
+        return [self.get_port_name(idx) for idx in self.get_open_ports()]
+
     def get_port_name(self, int portindex, encoding="utf-8"):
         """Return name of given port number.
 
@@ -708,14 +711,13 @@ cdef class MidiOut(MidiBase):
         def __get__(self): return self.msg3_locked
         def __set__(self, value):
             self.msg3_locked = int(value)
+    
     def __cinit__(self, clientname=None):
         if clientname is None:
             self.thisptr = new RtMidiOut(UNSPECIFIED, string(<char*>"RTMIDI"))
         else:
             clientname = clientname.encode("ASCII", errors="ignore")
             self.thisptr = new RtMidiOut(UNSPECIFIED, string(<char*>clientname))
-            # self.thisptr = new RtMidiOut(string(<char*>"rtmidiout"))
-        # self.thisptr = new RtMidiOut()
         self.msg3 = new vector[unsigned char]()
         for n in range(3):
             self.msg3.push_back(0)
@@ -724,6 +726,7 @@ cdef class MidiOut(MidiBase):
         self._openedports = []
 
     def __init__(self, clientname=None): pass
+
     def __dealloc__(self):
         self.close_port()
         del self.thisptr
@@ -797,7 +800,7 @@ cdef class MidiOut(MidiBase):
         b2 = transp >> 7
         self._send_raw3(DPITCHWHEEL+channel, b1, b2)
 
-    cdef inline void _send_raw3(self, unsigned char b0, unsigned char b1, unsigned char b2):
+    cdef inline void _send_raw3_(self, unsigned char b0, unsigned char b1, unsigned char b2):
         cdef vector[unsigned char]* v
         if self.msg3_locked:
             v = new vector[unsigned char](3)
@@ -814,6 +817,15 @@ cdef class MidiOut(MidiBase):
             v[0][2] = b2
             self.thisptr.sendMessage(v)
             self.msg3_locked = 0
+
+    cdef inline void _send_raw3(self, unsigned char b0, unsigned char b1, unsigned char b2):
+        cdef vector[unsigned char]* v = new vector[unsigned char](3)
+        v[0][0] = b0
+        v[0][1] = b1
+        v[0][2] = b2
+        self.thisptr.sendMessage(v)
+        del v
+        
 
     cpdef send_cc(self, unsigned char channel, unsigned char cc, unsigned char value):
         """
@@ -938,10 +950,11 @@ cpdef int pitchbend2cents(int pitchbend, maxcents=200):
     return int(((pitchbend/16383.0)*(maxcents*2.0))-maxcents+0.5)
 
 cpdef MidiIn _get_midiin():
-    global _midiin
-    if _midiin is None:
-        _midiin = MidiIn()
-    return _midiin
+    return MidiIn("inspector")
+    # global _midiin
+    # if _midiin is None:
+    #     _midiin = MidiIn()
+    # return _midiin
 
 def version():
     return (0, 7, 0)

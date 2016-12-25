@@ -17,7 +17,7 @@ RtMidi is included in the source tree, so you only need to do::
 Python 2 & 3
 ------------
 
-Thanks to Cython, this module is both compatible with Python 2 and Python 3. The only visible difference is that under python 3, all strings are byte strings. If you pass a unicode string to any function taking a string (open_virtual_port), an attempt will be made to encode the string as ASCII, through .encode("ASCII", errors="ignore"). 
+This module is compatible with both Python 2 and Python 3. The only visible difference is that under python 3, all strings are byte strings. If you pass a unicode string to any function taking a string (open_virtual_port), an attempt will be made to encode the string as ASCII, through .encode("ASCII", errors="ignore"). 
 
 Usage Examples
 --------------
@@ -76,11 +76,6 @@ Get incoming messages using a callback -- non blocking
     midi_in.open_port(0)
 
 
-Note that the signature of the callback differs from the original RtMidi API:
-`message` is now the first parameter, like in the tuple returned by
-`get_message()`.
-
-
 Open multiple ports at once
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
    
@@ -107,12 +102,6 @@ You can also get the device which generated the event by changing your callback 
                
 Send multiple notes at once
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The usecase for this is limited to a few niche-cases, but was the reason why 
-this fork was initiated in the first place. I needed a fast way to send multiple 
-notes at once for an application transcribing the spectrum of a voice to 
-midi messages to be played by an automated piano.
-
 
 .. code-block:: python
 
